@@ -52,81 +52,6 @@ interface TimelineData {
   action_window_text: string;
 }
 
-// ── Mock data (demo nav) ──────────────────────────────────────────────────
-
-const MOCK = {
-  question: "How long have you lived in this rental?",
-  facts: {
-    city: "Hayward",
-    building_type: "multi-unit apartment",
-    issue_type: "rent_increase",
-    increase_amount: "$400/month",
-    tenancy_length: "3 years",
-  } as ExtractedFacts,
-  verdict: {
-    finding: "illegal" as Finding,
-    explanation:
-      "A $400/month increase (28%) far exceeds Hayward's RSO cap of ~3.5% (~$52/mo) for rent-controlled units.",
-    controlling_law: "Hayward Municipal Code §4-17.050",
-    sources: [
-      {
-        name: "AB 1482 (Tenant Protection Act)",
-        url: "leginfo.legislature.ca.gov",
-        snippet:
-          "Limits rent increases to 5% + local CPI or 10%, whichever is lower, for covered units statewide.",
-      },
-      {
-        name: "Hayward RSO §4-17.050",
-        url: "hayward-ca.gov/rso",
-        snippet:
-          "Annual rent increases capped at local CPI (~3.5%) for units in multi-unit buildings built before 1979.",
-      },
-      {
-        name: "Hayward Rent Review Board",
-        url: "hayward-ca.gov/rent-review",
-        snippet:
-          "Tenants may file a petition within 90 days of receiving a rent increase notice.",
-      },
-    ],
-  } as VerdictData,
-  timeline: {
-    milestones: [
-      { day: 0,  label: "Notice received",      state: "passed" as MilestoneState },
-      { day: 10, label: "Send your letter",      state: "urgent" as MilestoneState },
-      { day: 30, label: "Landlord must respond", state: "future" as MilestoneState },
-      { day: 45, label: "Rent Review hearing",   state: "future" as MilestoneState },
-      { day: 60, label: "Resolution",            state: "future" as MilestoneState },
-    ],
-    action_window_days: 10,
-    action_window_text: "Send a dispute letter now — before the increase takes effect.",
-  } as TimelineData,
-};
-
-const MOCK_LETTER = `[Your Name]
-[Your Address]
-[City, State ZIP]
-[Date]
-
-[Landlord Name]
-[Landlord Address]
-
-Re: Unlawful Rent Increase — [Unit Address] — Hayward RSO §4-17.050
-
-Dear [Landlord Name],
-
-I am writing to formally dispute the rent increase of $400/month ($4,800 annually) that I received notice of on [Date]. This increase violates the Hayward Residential Rent Stabilization Ordinance (Hayward Municipal Code §4-17.050), which caps annual rent increases at the local Consumer Price Index (CPI), currently approximately 3.5%.
-
-Under the Hayward RSO, the maximum allowable increase for my unit is approximately $52/month. Your proposed increase of $400/month exceeds the legal maximum by $348/month.
-
-I respectfully request that you rescind this rent increase and provide a corrected notice reflecting the legally allowable amount under Hayward RSO §4-17.050.
-
-If this matter is not resolved within 30 days, I intend to file a petition with the Hayward Rent Review Board and pursue all available legal remedies.
-
-Sincerely,
-
-[Your Name]
-[Phone]
-[Email]`;
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
 
@@ -1102,11 +1027,21 @@ function CTAButton({ onClick, children }: { onClick: () => void; children: React
 
 // ── Letter Modal ───────────────────────────────────────────────────────────
 
-function LetterModal({ onClose, facts }: { onClose: () => void; facts: ExtractedFacts }) {
+function LetterModal({ onClose, sessionId }: { onClose: () => void; sessionId: string | null }) {
+  const [letter, setLetter] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (!sessionId) return;
+    fetch(`${API}/session/${sessionId}/artifact`, { method: "POST" })
+      .then((r) => r.json())
+      .then((d) => setLetter(d.artifact_text))
+      .catch(() => setLetter("Failed to generate letter. Please try again."));
+  }, [sessionId]);
+
   function copy() {
-    navigator.clipboard.writeText(MOCK_LETTER);
+    if (!letter) return;
+    navigator.clipboard.writeText(letter);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -1160,14 +1095,15 @@ function LetterModal({ onClose, facts }: { onClose: () => void; facts: Extracted
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-          <pre
-            style={{
-              fontFamily: "var(--font-sans)", fontSize: 14, lineHeight: 1.9,
-              color: "var(--text)", whiteSpace: "pre-wrap", margin: 0,
-            }}
-          >
-            {MOCK_LETTER.replace(/\[City\]/g, facts.city || "[City]")}
-          </pre>
+          {!letter ? (
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--muted)", textAlign: "center", marginTop: 40 }}>
+              Generating your letter…
+            </p>
+          ) : (
+            <pre style={{ fontFamily: "var(--font-sans)", fontSize: 14, lineHeight: 1.9, color: "var(--text)", whiteSpace: "pre-wrap", margin: 0 }}>
+              {letter}
+            </pre>
+          )}
         </div>
 
         <div
@@ -1188,11 +1124,13 @@ function LetterModal({ onClose, facts }: { onClose: () => void; facts: Extracted
           </button>
           <button
             onClick={copy}
+            disabled={!letter}
             style={{
               background: copied ? "var(--green)" : "var(--accent)",
               border: "none", borderRadius: 8, padding: "8px 16px",
               fontFamily: "var(--font-mono)", fontSize: 12,
-              color: "white", cursor: "pointer", transition: "background 0.2s",
+              color: "white", cursor: !letter ? "not-allowed" : "pointer",
+              transition: "background 0.2s", opacity: !letter ? 0.4 : 1,
             }}
           >
             {copied ? "Copied!" : "Copy Letter"}
@@ -1338,7 +1276,7 @@ export default function Home() {
         />
       )}
 
-      {showModal && <LetterModal onClose={() => setShowModal(false)} facts={facts} />}
+      {showModal && <LetterModal onClose={() => setShowModal(false)} sessionId={sessionId} />}
     </div>
   );
 }

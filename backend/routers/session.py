@@ -116,6 +116,7 @@ async def send_message(session_id: str, body: MessageRequest):
     # READY_TO_RESEARCH
     session["facts"].update(intake_result.get("facts", {}))
     verdict, citations = await research_ordinance(session["facts"])
+    session["verdict"] = verdict
     timeline = build_timeline(session["facts"], verdict)
 
     # Merge Perplexity citations into sources if not already rich
