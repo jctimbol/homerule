@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 const API = "http://localhost:8000";
 
@@ -73,62 +74,15 @@ function useTypewriter(text: string, speed = 20) {
 
 // ── Map data ────────────────────────────────────────────────────────────────
 
-const MAP_REGIONS = [
-  {
-    id: "Unincorporated",
-    points: "0,0 380,0 380,520 0,520",
-    fill: "#161622",
-    stroke: "none",
-  },
-  {
-    id: "Berkeley",
-    points: "28,26 174,24 180,138 26,133",
-    fill: "#5b9cf6",
-    labelX: 102, labelY: 84,
-    pinX: 102,  pinY: 70,
-  },
-  {
-    id: "Oakland",
-    points: "22,133 184,138 200,294 16,284",
-    fill: "#3ecf8e",
-    labelX: 108, labelY: 210,
-    pinX: 108,  pinY: 196,
-  },
-  {
-    id: "Alameda",
-    points: "112,252 230,248 234,294 110,298",
-    fill: "#a855f7",
-    labelX: 172, labelY: 270,
-    pinX: 172,  pinY: 256,
-  },
-  {
-    id: "San Leandro",
-    points: "12,284 202,294 214,358 8,348",
-    fill: "#f59e0b",
-    labelX: 112, labelY: 324,
-    pinX: 112,  pinY: 310,
-  },
-  {
-    id: "Hayward",
-    points: "6,348 216,358 228,438 4,428",
-    fill: "#e8573a",
-    labelX: 114, labelY: 396,
-    pinX: 114,  pinY: 382,
-  },
-  {
-    id: "Fremont",
-    points: "2,428 230,438 240,520 0,520",
-    fill: "#6b7280",
-    labelX: 120, labelY: 476,
-    pinX: 120,  pinY: 462,
-  },
-];
-
-const CITY_CARDS = [
-  { city: "Oakland",  law: "RSO — 3% cap + just cause eviction",        color: "#3ecf8e" },
-  { city: "Hayward",  law: "RSO — ~3.5% CPI cap, Rent Review Board",    color: "#e8573a" },
-  { city: "Fremont",  law: "AB 1482 only — up to 10% cap, no local RSO", color: "#6b7280" },
-];
+const CITY_COLORS: Record<string, string> = {
+  Berkeley:      "#5b9cf6",
+  Oakland:       "#3ecf8e",
+  Alameda:       "#a855f7",
+  "San Leandro": "#f59e0b",
+  Hayward:       "#e8573a",
+  Fremont:       "#6b7280",
+  Emeryville:    "#4b5563",
+};
 
 const SOURCE_ICONS = ["⚖️", "🏛️", "📋"];
 
@@ -420,140 +374,113 @@ function ListeningState({
 
 // ── State 3: Map ───────────────────────────────────────────────────────────
 
-function MapState({ city }: { city: string }) {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => { setTimeout(() => setVisible(true), 80); }, []);
+// MapLibre color expression — each city gets its own fill colour
+const CITY_COLOR_EXPR = [
+  "match", ["get", "BASENAME"],
+  "Berkeley",    CITY_COLORS["Berkeley"],
+  "Oakland",     CITY_COLORS["Oakland"],
+  "Alameda",     CITY_COLORS["Alameda"],
+  "San Leandro", CITY_COLORS["San Leandro"],
+  "Hayward",     CITY_COLORS["Hayward"],
+  "Fremont",     CITY_COLORS["Fremont"],
+  "Emeryville",  CITY_COLORS["Emeryville"],
+  "#4b5563",
+];
 
-  const userRegion = MAP_REGIONS.find((r) => r.id === city);
+function MapState({ city }: { city: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef = useRef<any>(null);
+  const normalCity = city.split(",")[0].trim();
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let map: any;
+
+    import("maplibre-gl").then(({ Map }) => {
+      if (!containerRef.current) return;
+      map = new Map({
+        container: containerRef.current,
+        style: "https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json",
+        bounds: [[-122.42, 37.42], [-121.82, 37.95]],
+        fitBoundsOptions: { padding: 24 },
+        interactive: false,
+        attributionControl: false,
+      });
+
+      map.on("load", () => {
+        map.addSource("cities", { type: "geojson", data: "/east-bay.json" });
+
+        map.addLayer({
+          id: "cities-fill",
+          type: "fill",
+          source: "cities",
+          paint: { "fill-color": CITY_COLOR_EXPR, "fill-opacity": 0.22 },
+        });
+
+        map.addLayer({
+          id: "city-highlight",
+          type: "fill",
+          source: "cities",
+          filter: ["==", ["get", "BASENAME"], normalCity],
+          paint: {
+            "fill-color": CITY_COLORS[normalCity] ?? "#5b9cf6",
+            "fill-opacity": 0.55,
+          },
+        });
+
+        map.addLayer({
+          id: "cities-outline",
+          type: "line",
+          source: "cities",
+          paint: { "line-color": "#ffffff", "line-opacity": 0.12, "line-width": 1 },
+        });
+
+        map.addLayer({
+          id: "city-highlight-outline",
+          type: "line",
+          source: "cities",
+          filter: ["==", ["get", "BASENAME"], normalCity],
+          paint: {
+            "line-color": CITY_COLORS[normalCity] ?? "#5b9cf6",
+            "line-opacity": 0.9,
+            "line-width": 2,
+          },
+        });
+      });
+
+      mapRef.current = map;
+    });
+
+    return () => { map?.remove(); mapRef.current = null; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update highlight layers when city changes without remounting
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    const filter = ["==", ["get", "BASENAME"], normalCity];
+    const color = CITY_COLORS[normalCity] ?? "#5b9cf6";
+    map.setFilter("city-highlight", filter);
+    map.setFilter("city-highlight-outline", filter);
+    map.setPaintProperty("city-highlight", "fill-color", color);
+    map.setPaintProperty("city-highlight-outline", "line-color", color);
+  }, [normalCity]);
 
   return (
-    <div
-      style={{
-        display: "flex", alignItems: "center", justifyContent: "center",
-        minHeight: "100vh", padding: "80px 40px",
-        gap: 56,
-      }}
-    >
-      {/* SVG Map */}
-      <div style={{ flexShrink: 0 }}>
-        <svg viewBox="0 0 380 520" width={320} height={440}>
-          {MAP_REGIONS.map((region, i) => (
-            <g key={region.id}>
-              <polygon
-                points={region.points}
-                fill={region.fill}
-                fillOpacity={
-                  visible
-                    ? region.id === "Unincorporated"
-                      ? 1
-                      : region.id === city
-                      ? 0.92
-                      : 0.52
-                    : 0
-                }
-                stroke={region.id === "Unincorporated" ? "none" : "#0c0c10"}
-                strokeWidth={1.5}
-                style={{
-                  transition: `fill-opacity 0.45s ease ${i * 0.08}s`,
-                  filter: region.id === city ? `drop-shadow(0 0 10px ${region.fill}99)` : "none",
-                }}
-              />
-              {region.id !== "Unincorporated" && region.labelX && (
-                <text
-                  x={region.labelX} y={region.labelY}
-                  textAnchor="middle"
-                  fill={region.id === city ? "white" : "rgba(255,255,255,0.55)"}
-                  fontSize={9}
-                  fontFamily="IBM Plex Mono, monospace"
-                  fontWeight={region.id === city ? "600" : "400"}
-                  style={{ userSelect: "none", pointerEvents: "none" }}
-                >
-                  {region.id}
-                </text>
-              )}
-            </g>
-          ))}
-
-          {/* YOU pin */}
-          {userRegion && userRegion.pinX && visible && (
-            <g>
-              <circle
-                className="pin-pulse"
-                cx={userRegion.pinX} cy={userRegion.pinY}
-                r={14} fill="none" stroke="white" strokeWidth={1.2}
-              />
-              <circle cx={userRegion.pinX} cy={userRegion.pinY} r={5} fill="white" />
-              <text
-                x={userRegion.pinX} y={userRegion.pinY - 14}
-                textAnchor="middle" fill="white" fontSize={8}
-                fontFamily="IBM Plex Mono, monospace" fontWeight="600"
-                letterSpacing="0.06em"
-                style={{ userSelect: "none" }}
-              >
-                YOU
-              </text>
-            </g>
-          )}
-        </svg>
-      </div>
-
-      {/* Callout panel */}
-      <div style={{ flex: 1, maxWidth: 380, display: "flex", flexDirection: "column", gap: 20 }}>
-        <div>
-          <p style={{ fontFamily: "var(--font-playfair)", fontSize: 28, color: "var(--text)", margin: "0 0 10px", lineHeight: 1.3 }}>
-            Where you live<br />
-            <span style={{ color: "var(--accent)" }}>{city || "your city"}</span> changes everything.
-          </p>
-          <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--muted)", margin: 0, lineHeight: 1.6 }}>
-            State law sets a floor. Local ordinances stack on top — and they vary dramatically by city.
-          </p>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {CITY_CARDS.map((card) => {
-            const isUser = card.city === city;
-            return (
-              <div
-                key={card.city}
-                style={{
-                  background: isUser ? "var(--accent-dim)" : "var(--surface)",
-                  border: `1px solid ${isUser ? "rgba(232,87,58,0.4)" : "var(--border)"}`,
-                  borderRadius: 10, padding: "10px 14px",
-                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: card.color, display: "block", flexShrink: 0 }} />
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text)", fontWeight: 500 }}>
-                      {card.city}
-                    </span>
-                  </div>
-                  <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--muted)", margin: "0 0 0 15px" }}>
-                    {card.law}
-                  </p>
-                </div>
-                {isUser && (
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--accent)", whiteSpace: "nowrap", flexShrink: 0 }}>
-                    ← You are here
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <div
-          style={{
-            background: "var(--yellow-dim)", border: "1px solid rgba(245,197,24,0.2)",
-            borderRadius: 10, padding: "10px 14px",
-          }}
-        >
-          <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--yellow)", margin: 0, lineHeight: 1.6 }}>
-            A general AI gives you California state law. HomeRule knows your city's rules — retrieved live.
-          </p>
-        </div>
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+      <p style={{
+        fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase",
+        letterSpacing: "0.1em", color: "var(--muted)", margin: 0,
+      }}>
+        Your location · East Bay, CA
+      </p>
+      <div
+        ref={containerRef}
+        style={{ width: "100%", maxWidth: 420, height: 380, borderRadius: 12, overflow: "hidden" }}
+      />
     </div>
   );
 }
@@ -698,232 +625,133 @@ function ResearchingState({ city, sources }: { city: string; sources: Source[] }
 
 // ── State 5: Verdict ───────────────────────────────────────────────────────
 
-function Timeline({ data }: { data: TimelineData }) {
+function Timeline({ data, onSendLetter }: { data: TimelineData; onSendLetter: () => void }) {
   const [animated, setAnimated] = useState(false);
+  const [btnHovered, setBtnHovered] = useState(false);
   useEffect(() => { setTimeout(() => setAnimated(true), 120); }, []);
 
-  const maxDay = data.milestones[data.milestones.length - 1].day;
-  const urgentMilestone = data.milestones.find((m) => m.state === "urgent");
-  const fillPct = urgentMilestone ? (urgentMilestone.day / maxDay) * 100 : 30;
+  const n = data.milestones.length;
+  const urgentIdx = data.milestones.findIndex((m) => m.state === "urgent");
+
+  // Edge dots sit at column left/right edges (0% / 100%);
+  // middle dots sit at column centers ((i + 0.5) / n * 100%).
+  // Fill must match these actual pixel positions.
+  function dotPct(i: number) {
+    if (i === 0)     return 0;
+    if (i === n - 1) return 100;
+    return ((i + 0.5) / n) * 100;
+  }
+  const fillPct = urgentIdx >= 0 ? dotPct(urgentIdx) : 0;
+
+  // Fixed height reserved above the track for "above" labels.
+  // All dots sit at y = ABOVE_H, so the track line can be positioned exactly there.
+  const ABOVE_H = 52;
+  const DOT_BASE = 10; // normal dot diameter; track line is centered on this
 
   return (
-    <div style={{ position: "relative", padding: "52px 0 44px" }}>
-      <div style={{ position: "relative", height: 3, background: "var(--border2)", borderRadius: 2 }}>
-        {/* Fill */}
-        <div
-          style={{
-            position: "absolute", left: 0, top: 0, bottom: 0,
-            width: animated ? `${fillPct}%` : "0%",
-            background: "linear-gradient(90deg, var(--green), var(--accent))",
-            borderRadius: 2,
-            transition: "width 1.2s cubic-bezier(0.4,0,0.2,1)",
-          }}
-        />
+    <div style={{ position: "relative" }}>
 
-        {/* Milestone dots */}
-        {data.milestones.map((m) => {
-          const pct = (m.day / maxDay) * 100;
-          const color =
-            m.state === "passed" ? "var(--green)" :
-            m.state === "urgent" ? "var(--accent)" :
-            "var(--border2)";
+      {/* Track line — runs full width at the dot center */}
+      <div style={{
+        position: "absolute", left: 0, right: 0,
+        top: ABOVE_H + DOT_BASE / 2 - 1, height: 2,
+        background: "var(--border2)", borderRadius: 1,
+      }}>
+        <div style={{
+          position: "absolute", left: 0, top: 0, bottom: 0,
+          width: animated ? `${fillPct}%` : "0%",
+          background: "linear-gradient(90deg, var(--green), var(--accent))",
+          borderRadius: 1,
+          transition: "width 1.2s cubic-bezier(0.4,0,0.2,1)",
+        }} />
+      </div>
+
+      {/* Milestone columns */}
+      <div style={{ display: "flex" }}>
+        {data.milestones.map((m, i) => {
+          const above     = i % 2 === 0;
+          const isUrgent  = m.state === "urgent";
+          const isPassed  = m.state === "passed";
+          const isFirst   = i === 0;
+          const isLast    = i === n - 1;
+          const dotSize   = isUrgent ? 14 : 10;
+          const dotColor  = isPassed ? "var(--green)" : isUrgent ? "var(--accent)" : "var(--border2)";
+          const textColor = isPassed ? "var(--green)" : isUrgent ? "var(--accent)" : "var(--muted)";
+          const align     = isFirst ? "flex-start" : isLast ? "flex-end" : "center";
+          const textAlign = isFirst ? "left"        : isLast ? "right"   : "center";
+
+          const labelContent = isUrgent ? (
+            <button
+              onClick={onSendLetter}
+              onMouseEnter={() => setBtnHovered(true)}
+              onMouseLeave={() => setBtnHovered(false)}
+              style={{
+                cursor: "pointer",
+                background: btnHovered ? "var(--accent)" : "var(--accent-dim)",
+                border: "1px solid var(--accent)",
+                borderRadius: 999, padding: "5px 14px",
+                fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
+                color: btnHovered ? "white" : "var(--accent)",
+                transition: "all 0.15s",
+                boxShadow: btnHovered ? "0 0 16px rgba(232,87,58,0.4)" : "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {m.label} →
+            </button>
+          ) : (
+            <div style={{
+              fontFamily: "var(--font-mono)", fontSize: 10, color: textColor,
+              textAlign, lineHeight: 1.4, width: "100%", wordBreak: "break-word",
+            }}>
+              {m.label}
+            </div>
+          );
+
           return (
-            <div key={m.day} style={{ position: "absolute", left: `${pct}%`, transform: "translateX(-50%)" }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, marginTop: -3.5 }} />
-              <div
-                style={{
-                  position: "absolute", top: -26, left: "50%", transform: "translateX(-50%)",
-                  whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: 9,
-                  color: m.state === "passed" ? "var(--green)" : m.state === "urgent" ? "var(--accent)" : "var(--muted)",
-                }}
-              >
-                {m.day === 0 ? "Today" : `Day ${m.day}`}
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: align }}>
+
+              {/* Above zone — fixed height so all dots land at the same y */}
+              <div style={{
+                height: ABOVE_H, width: "100%",
+                display: "flex", alignItems: "flex-end", paddingBottom: 8,
+                justifyContent: isFirst ? "flex-start" : isLast ? "flex-end" : "center",
+              }}>
+                {above && labelContent}
               </div>
-              <div
-                style={{
-                  position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)",
-                  whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: 9,
-                  color: m.state === "passed" ? "var(--green)" : m.state === "urgent" ? "var(--accent)" : "var(--muted)",
-                }}
-              >
-                {m.label}
+
+              {/* Dot — centered on track line */}
+              <div style={{
+                width: dotSize, height: dotSize, borderRadius: "50%",
+                background: dotColor, position: "relative", zIndex: 1, flexShrink: 0,
+                marginTop: (DOT_BASE - dotSize) / 2,
+                boxShadow: isUrgent ? "0 0 10px var(--accent)" : "none",
+              }} />
+
+              {/* Below zone */}
+              <div style={{
+                paddingTop: 10, width: "100%",
+                display: "flex", justifyContent: isFirst ? "flex-start" : isLast ? "flex-end" : "center",
+              }}>
+                {!above && labelContent}
               </div>
+
             </div>
           );
         })}
-
-        {/* YOU ARE HERE marker */}
-        <div
-          style={{
-            position: "absolute",
-            left: animated ? `${fillPct}%` : "0%",
-            transform: "translateX(-50%)",
-            transition: "left 1.2s cubic-bezier(0.4,0,0.2,1)",
-            top: -5,
-          }}
-        >
-          <div style={{ position: "relative", width: 14, height: 14 }}>
-            <div
-              className="pin-pulse"
-              style={{
-                position: "absolute", inset: 0, borderRadius: "50%",
-                border: "1px solid var(--accent)",
-              }}
-            />
-            <div style={{ width: 14, height: 14, borderRadius: "50%", background: "var(--accent)" }} />
-          </div>
-          <div
-            style={{
-              position: "absolute", bottom: "100%", left: "50%",
-              transform: "translateX(-50%)", marginBottom: 6,
-              whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: 8,
-              color: "var(--accent)", letterSpacing: "0.08em",
-            }}
-          >
-            YOU ARE HERE
-          </div>
-        </div>
       </div>
+
     </div>
   );
 }
 
-function CaseFile({ facts, verdict }: { facts: ExtractedFacts; verdict: VerdictData }) {
-  return (
-    <div
-      style={{
-        background: "var(--surface)", borderLeft: "1px solid var(--border)",
-        height: "100%", display: "flex", flexDirection: "column",
-      }}
-    >
-      <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--border)" }}>
-        <p
-          style={{
-            fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase",
-            letterSpacing: "0.1em", color: "var(--muted)", margin: "0 0 4px",
-          }}
-        >
-          Case File
-        </p>
-        <p style={{ fontFamily: "var(--font-playfair)", fontSize: 16, color: "var(--text)", margin: 0 }}>
-          Rent Increase Dispute
-        </p>
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* Situation */}
-        <div>
-          <p
-            style={{
-              fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase",
-              letterSpacing: "0.1em", color: "var(--muted)", margin: "0 0 10px",
-            }}
-          >
-            Situation
-          </p>
-          {[
-            ["City",       facts.city                || "—"],
-            ["Building",   facts.building_type       || "—"],
-            ["Tenancy",    facts.tenancy_length       || "—"],
-            ["Increase",   facts.increase_amount      || "—"],
-            ["Legal cap",  verdict.legal_cap          || "—"],
-          ].map(([k, v]) => (
-            <div
-              key={k}
-              style={{
-                display: "flex", justifyContent: "space-between",
-                padding: "7px 0", borderBottom: "1px dashed var(--border)",
-              }}
-            >
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted)" }}>{k}</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text)" }}>{v}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Law Applied */}
-        <div>
-          <p
-            style={{
-              fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase",
-              letterSpacing: "0.1em", color: "var(--muted)", margin: "0 0 10px",
-            }}
-          >
-            Law Applied
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {(verdict.laws_applied || []).map((law: { tag: string; role: string; description: string }) => {
-              const isControlling = law.role === "controlling";
-              return (
-                <div key={law.tag} style={{ background: "var(--surface2)", borderRadius: 8, padding: "10px 12px" }}>
-                  <div style={{ marginBottom: 4 }}>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono)", fontSize: 9,
-                        color: isControlling ? "var(--accent)" : "var(--blue)",
-                        background: isControlling ? "var(--accent-dim)" : "rgba(91,156,246,0.1)",
-                        border: `1px solid ${isControlling ? "rgba(232,87,58,0.2)" : "rgba(91,156,246,0.2)"}`,
-                        borderRadius: 4, padding: "1px 6px",
-                      }}
-                    >
-                      {law.tag}
-                    </span>
-                  </div>
-                  <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "var(--muted)", margin: 0 }}>
-                    {law.description}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Sources */}
-        <div>
-          <p
-            style={{
-              fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase",
-              letterSpacing: "0.1em", color: "var(--muted)", margin: "0 0 10px",
-            }}
-          >
-            Sources
-          </p>
-          <div
-            style={{
-              background: "var(--green-dim)", border: "1px solid rgba(62,207,142,0.15)",
-              borderRadius: 8, padding: "10px 12px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <span className="blink-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--green)", display: "block" }} />
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--green)" }}>
-                Live Lookup · Perplexity
-              </span>
-            </div>
-            {verdict.sources.map((s) => (
-              <div key={s.url} style={{ padding: "6px 0", borderBottom: "1px solid rgba(62,207,142,0.1)" }}>
-                <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text)", margin: "0 0 2px" }}>
-                  {s.name}
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--muted)" }}>{s.url}</span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--green)" }}>just now</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function VerdictState({
-  verdict, timeline, facts, onGenerateLetter,
+  verdict, timeline, city, onGenerateLetter,
 }: {
   verdict: VerdictData;
   timeline: TimelineData;
-  facts: ExtractedFacts;
+  city: string;
   onGenerateLetter: () => void;
 }) {
   const findingColor =
@@ -934,94 +762,37 @@ function VerdictState({
     verdict.finding === "legal"   ? "Legal."   : "Unclear.";
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", paddingTop: 68 }}>
-      {/* Left panel */}
-      <div
-        style={{
-          flex: 1, padding: "40px 40px 40px 48px",
-          display: "flex", flexDirection: "column", gap: 24, overflowY: "auto",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase",
-              letterSpacing: "0.1em", color: "var(--muted)",
-            }}
-          >
-            Finding issued
-          </span>
-          <div style={{ flex: 1, height: 1, background: "var(--accent)" }} />
-        </div>
-
-        <div>
-          <h1
-            style={{
-              fontFamily: "var(--font-playfair)", fontSize: 72, fontWeight: 700,
-              color: findingColor, margin: 0, lineHeight: 1,
-            }}
-          >
-            {findingLabel}
-          </h1>
-          <p style={{ fontFamily: "var(--font-sans)", fontSize: 16, color: "var(--text)", margin: "16px 0 0", lineHeight: 1.6 }}>
-            {verdict.explanation}
-          </p>
-          <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted)", margin: "8px 0 0" }}>
-            {verdict.controlling_law}
-          </p>
-        </div>
-
-        <Timeline data={timeline} />
-
-        <div
-          style={{
-            background: "var(--yellow-dim)", border: "1px solid rgba(245,197,24,0.2)",
-            borderRadius: 12, padding: "14px 16px",
-            display: "flex", alignItems: "flex-start", gap: 12,
-          }}
-        >
-          <span style={{ fontSize: 18, flexShrink: 0 }}>⏱</span>
-          <div>
-            <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--yellow)", margin: 0, fontWeight: 600 }}>
-              Your action window: {timeline.action_window_days} days.
-            </p>
-            <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--muted)", margin: "4px 0 0" }}>
-              {timeline.action_window_text}
-            </p>
-          </div>
-        </div>
-
-        <CTAButton onClick={onGenerateLetter}>Generate my letter →</CTAButton>
-      </div>
-
-      {/* Right: Case File */}
-      <div style={{ width: 300, flexShrink: 0 }}>
-        <CaseFile facts={facts} verdict={verdict} />
-      </div>
-    </div>
-  );
-}
-
-function CTAButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+    <div
       style={{
-        alignSelf: "flex-start",
-        background: hovered ? "var(--accent)" : "var(--surface2)",
-        border: `1px solid ${hovered ? "var(--accent)" : "var(--border)"}`,
-        borderRadius: 12, padding: "12px 24px",
-        fontFamily: "var(--font-mono)", fontSize: 13, color: "white",
-        cursor: "pointer",
-        transform: hovered ? "translateY(-1px)" : "translateY(0)",
-        transition: "all 0.18s",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", minHeight: "100vh",
+        padding: "100px 64px 80px", maxWidth: 860, margin: "0 auto",
       }}
     >
-      {children}
-    </button>
+      {/* Finding */}
+      <div style={{ width: "100%", marginBottom: 8 }}>
+        <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)", margin: "0 0 12px" }}>
+          Finding issued
+        </p>
+        <h1 style={{ fontFamily: "var(--font-playfair)", fontSize: 96, fontWeight: 700, color: findingColor, margin: 0, lineHeight: 1 }}>
+          {findingLabel}
+        </h1>
+        <p style={{ fontFamily: "var(--font-sans)", fontSize: 18, color: "var(--text)", margin: "20px 0 0", lineHeight: 1.6, maxWidth: 640 }}>
+          {verdict.explanation}
+        </p>
+      </div>
+
+      {/* Timeline — primary element */}
+      <div style={{ width: "100%", marginTop: 24 }}>
+        <Timeline data={timeline} onSendLetter={onGenerateLetter} />
+      </div>
+
+      {/* Map — anchored to bottom */}
+      <div style={{ width: "100%", marginTop: 40, borderTop: "1px solid var(--border)", paddingTop: 40 }}>
+        <MapState city={city} />
+      </div>
+
+    </div>
   );
 }
 
@@ -1202,9 +973,8 @@ export default function Home() {
         if (data.facts)   setFacts(data.facts);
         if (data.verdict) setVerdict(data.verdict);
         if (data.timeline) setTimeline(data.timeline);
-        setAppState("map");
-        setTimeout(() => setAppState("researching"), 2000);
-        setTimeout(() => setAppState("verdict"), 6400);
+        setAppState("researching");
+        setTimeout(() => setAppState("verdict"), 4400);
       }
     } catch {
       setLoadingState("idle");
@@ -1261,8 +1031,6 @@ export default function Home() {
         />
       )}
 
-      {appState === "map" && <MapState city={facts.city || "Hayward"} />}
-
       {appState === "researching" && (
         <ResearchingState city={facts.city || ""} sources={verdict?.sources ?? []} />
       )}
@@ -1271,7 +1039,7 @@ export default function Home() {
         <VerdictState
           verdict={verdict}
           timeline={timeline}
-          facts={facts}
+          city={facts.city || ""}
           onGenerateLetter={() => setShowModal(true)}
         />
       )}
