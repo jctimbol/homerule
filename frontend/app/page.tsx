@@ -88,7 +88,7 @@ const SOURCE_ICONS = ["⚖️", "🏛️", "📋"];
 
 // ── Persistent: Wordmark ───────────────────────────────────────────────────
 
-function Wordmark() {
+function Wordmark({ onReset }: { onReset?: () => void }) {
   return (
     <div
       style={{
@@ -96,22 +96,30 @@ function Wordmark() {
         display: "flex", alignItems: "center", gap: 10,
       }}
     >
-      <div
+      <button
+        onClick={onReset}
         style={{
-          width: 28, height: 28, borderRadius: "50%",
-          background: "var(--accent)",
-          display: "flex", alignItems: "center", justifyContent: "center",
+          display: "flex", alignItems: "center", gap: 10,
+          background: "none", border: "none", cursor: onReset ? "pointer" : "default", padding: 0,
         }}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-          <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-          <line x1="12" y1="19" x2="12" y2="22" />
-        </svg>
-      </div>
-      <span style={{ fontFamily: "var(--font-playfair)", fontSize: 18, fontWeight: 600, color: "var(--text)" }}>
-        HomeRule
-      </span>
+        <div
+          style={{
+            width: 28, height: 28, borderRadius: "50%",
+            background: "var(--accent)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="22" />
+          </svg>
+        </div>
+        <span style={{ fontFamily: "var(--font-playfair)", fontSize: 18, fontWeight: 600, color: "var(--text)" }}>
+          HomeRule
+        </span>
+      </button>
       <div
         style={{
           display: "flex", alignItems: "center", gap: 5,
@@ -957,25 +965,104 @@ function SourcesPanel({ sources }: { sources: Source[] }) {
   );
 }
 
-function ActionsSection({ finding, sessionId, onAskMore }: {
+// ── Legal aid contacts (static, city-keyed) ──────────────────────────────────
+
+const LEGAL_AID: Record<string, Array<{ name: string; phone: string; url: string; description: string }>> = {
+  Oakland: [
+    { name: "Oakland Rent Adjustment Program", phone: "510-238-3721", url: "oaklandca.gov/rap", description: "File a RAP petition for illegal rent increases. Free process, no attorney needed." },
+    { name: "Bay Area Legal Aid", phone: "510-250-5270", url: "baylegal.org", description: "Free civil legal services for low-income tenants. Advice, representation, and hotline." },
+    { name: "Centro Legal de la Raza", phone: "510-437-1554", url: "centrolegal.org", description: "Free legal services with Spanish-language support. Weekly tenant rights clinics." },
+    { name: "Tenants Together", phone: "415-703-8634", url: "tenantstogether.org", description: "Statewide tenant rights hotline. Referrals to local attorneys and free clinics." },
+  ],
+  Berkeley: [
+    { name: "Berkeley Rent Stabilization Board", phone: "510-981-7368", url: "rentboard.berkeleyca.gov", description: "File a rent board petition. Free counselors available to walk you through the process." },
+    { name: "Bay Area Legal Aid", phone: "510-250-5270", url: "baylegal.org", description: "Free civil legal services for low-income tenants." },
+    { name: "Tenants Together", phone: "415-703-8634", url: "tenantstogether.org", description: "Statewide tenant rights hotline and attorney referrals." },
+  ],
+  Alameda: [
+    { name: "City of Alameda Rent Program", phone: "510-747-4346", url: "alamedarentprogram.org", description: "File a rent petition or get free counseling on your rights under the Alameda RSO." },
+    { name: "Bay Area Legal Aid", phone: "510-250-5270", url: "baylegal.org", description: "Free civil legal services for low-income tenants." },
+    { name: "Tenants Together", phone: "415-703-8634", url: "tenantstogether.org", description: "Statewide tenant rights hotline and attorney referrals." },
+  ],
+  "San Leandro": [
+    { name: "San Leandro Rent Review Program", phone: "510-577-3357", url: "sanleandro.org/housing", description: "Request mediation for rent increases over 7%. Free to participate, both parties must attend." },
+    { name: "Bay Area Legal Aid", phone: "510-250-5270", url: "baylegal.org", description: "Free civil legal services for low-income tenants." },
+    { name: "Tenants Together", phone: "415-703-8634", url: "tenantstogether.org", description: "Statewide tenant rights hotline and attorney referrals." },
+  ],
+  Hayward: [
+    { name: "Hayward Rent Review Board", phone: "510-583-4454", url: "hayward-ca.gov/rent", description: "File a complaint for violations of the Hayward RRSO. Free process, no attorney needed." },
+    { name: "Bay Area Legal Aid", phone: "510-250-5270", url: "baylegal.org", description: "Free civil legal services for low-income tenants." },
+    { name: "Centro Legal de la Raza", phone: "510-437-1554", url: "centrolegal.org", description: "Free legal services with Spanish-language support. Weekly tenant rights clinics." },
+  ],
+  Fremont: [
+    { name: "Fremont Rent Review Program", phone: "510-494-4440", url: "fremont.gov/rent", description: "Request a hearing for increases over 5%. Advisory — landlords must participate." },
+    { name: "Bay Area Legal Aid", phone: "510-250-5270", url: "baylegal.org", description: "Free civil legal services for low-income tenants." },
+    { name: "Tenants Together", phone: "415-703-8634", url: "tenantstogether.org", description: "Statewide tenant rights hotline and attorney referrals." },
+  ],
+  Emeryville: [
+    { name: "Bay Area Legal Aid", phone: "510-250-5270", url: "baylegal.org", description: "Free civil legal services for low-income tenants." },
+    { name: "Centro Legal de la Raza", phone: "510-437-1554", url: "centrolegal.org", description: "Free legal services with Spanish-language support." },
+    { name: "Tenants Together", phone: "415-703-8634", url: "tenantstogether.org", description: "Statewide tenant rights hotline and attorney referrals." },
+  ],
+};
+
+const DEFAULT_LEGAL_AID = [
+  { name: "Bay Area Legal Aid", phone: "510-250-5270", url: "baylegal.org", description: "Free civil legal services for low-income tenants across the East Bay." },
+  { name: "Centro Legal de la Raza", phone: "510-437-1554", url: "centrolegal.org", description: "Free legal services with Spanish-language support. Tenant rights clinics available." },
+  { name: "Tenants Together", phone: "415-703-8634", url: "tenantstogether.org", description: "Statewide tenant rights hotline. Referrals to local attorneys and free clinics." },
+];
+
+function LegalAidModal({ city, onClose }: { city: string; onClose: () => void }) {
+  const orgs = LEGAL_AID[city] ?? DEFAULT_LEGAL_AID;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} className="modal-in" style={{ width: "100%", maxWidth: 540, maxHeight: "80vh", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--green)", margin: "0 0 4px" }}>Free help near you</p>
+            <p style={{ fontFamily: "var(--font-playfair)", fontSize: 18, color: "var(--text)", margin: 0 }}>Legal Aid — {city}</p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 22, lineHeight: 1, padding: 4 }}>×</button>
+        </div>
+        <div style={{ overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+          {orgs.map((org) => (
+            <div key={org.name} style={{ background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{org.name}</span>
+                <a href={`tel:${org.phone.replace(/-/g, "")}`} style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>{org.phone}</a>
+              </div>
+              <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--muted)", margin: "0 0 8px", lineHeight: 1.5 }}>{org.description}</p>
+              <a href={`https://${org.url}`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--muted)", textDecoration: "underline", textUnderlineOffset: 2 }}>{org.url}</a>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActionsSection({ finding, sessionId, city, onAskMore }: {
   finding: Finding;
   sessionId: string | null;
+  city: string;
   onAskMore: () => void;
 }) {
   const [modal, setModal] = useState<string | null>(null);
 
   const actions =
     finding === "illegal" ? [
-      { key: "dispute_letter",   label: "Send your letter",     title: "Dispute Letter",       subtitle: "Unlawful rent increase", description: "A formal letter citing the violation and demanding the landlord comply with the legal cap." },
+      { key: "dispute_letter",  label: "Send your letter",        title: "Dispute Letter",       subtitle: "Unlawful rent increase",          description: "A formal letter citing the violation and demanding the landlord comply with the legal cap." },
+      { key: "complaint_form",  label: "File with the rent board", title: "Rent Board Complaint", subtitle: "Official complaint package",      description: "A pre-filled complaint ready to submit to your city's rent board — the step that creates legal accountability." },
+      { key: "legal_aid",       label: "Find free legal help",    title: "",                     subtitle: "",                                description: "Free legal aid orgs, rent board contacts, and tenant rights clinics in your city." },
     ] :
     finding === "legal" ? [
-      { key: "rights_summary",      label: "Know your other rights",  title: "Your Rights",           subtitle: "What still protects you",              description: "A summary of the notice, habitability, and retaliation protections that still apply to you." },
-      { key: "confirmation_letter", label: "Get this in writing",     title: "Confirmation Letter",   subtitle: "Documenting the increase",             description: "A neutral letter to your landlord confirming the new rent and effective date — builds a paper trail." },
-      { key: "reminder",            label: "Set a reminder",          title: "",                      subtitle: "",                                     description: "Mark your calendar for 12 months from now, when AB 1482 coverage may change." },
+      { key: "rights_summary",      label: "Know your other rights",  title: "Your Rights",           subtitle: "What still protects you",         description: "A summary of the notice, habitability, and retaliation protections that still apply to you." },
+      { key: "confirmation_letter", label: "Get this in writing",     title: "Confirmation Letter",   subtitle: "Documenting the increase",        description: "A neutral letter to your landlord confirming the new rent and effective date — builds a paper trail." },
+      { key: "reminder",            label: "Set a reminder",          title: "",                      subtitle: "",                                description: "Mark your calendar for 12 months from now, when AB 1482 coverage may change." },
     ] : [
-      { key: "situation_summary",   label: "Talk to a tenant rights org", title: "Situation Summary", subtitle: "For your legal aid appointment",       description: "A one-page brief with your facts pre-filled — so you get the most out of 20 minutes with an attorney." },
-      { key: "ask_more",            label: "Ask a clarifying question",   title: "",                  subtitle: "",                                     description: "Provide one more fact that might resolve the ambiguity and get a firmer answer." },
-      { key: "watch_for",           label: "Here's what to watch for",    title: "What to Watch For", subtitle: "Conditions that change this analysis",  description: "The specific things you can verify that would make this illegal." },
+      { key: "situation_summary",   label: "Talk to a tenant rights org", title: "Situation Summary", subtitle: "For your legal aid appointment", description: "A one-page brief with your facts pre-filled — so you get the most out of 20 minutes with an attorney." },
+      { key: "legal_aid",           label: "Find free legal help",        title: "",                  subtitle: "",                              description: "Free legal aid orgs and tenant rights clinics in your city that can resolve the ambiguity." },
+      { key: "watch_for",           label: "Here's what to watch for",    title: "What to Watch For", subtitle: "Conditions that change this",    description: "The specific things you can verify that would make this illegal." },
     ];
 
   return (
@@ -992,7 +1079,8 @@ function ActionsSection({ finding, sessionId, onAskMore }: {
       </div>
 
       {modal === "reminder" && <ReminderModal onClose={() => setModal(null)} />}
-      {modal && modal !== "reminder" && (
+      {modal === "legal_aid" && <LegalAidModal city={city} onClose={() => setModal(null)} />}
+      {modal && modal !== "reminder" && modal !== "legal_aid" && (
         <ArtifactModal
           type={modal}
           title={actions.find(a => a.key === modal)?.title ?? ""}
@@ -1021,10 +1109,8 @@ function VerdictState({
 }) {
   const [showActions, setShowActions] = useState(false);
   const [showSources, setShowSources] = useState(false);
-  const [directModal, setDirectModal] = useState(false);
-
   // Collapse panels when city switches
-  useEffect(() => { if (verdictFading) { setShowActions(false); setShowSources(false); setDirectModal(false); } }, [verdictFading]);
+  useEffect(() => { if (verdictFading) { setShowActions(false); setShowSources(false); } }, [verdictFading]);
 
   const findingColor =
     verdict.finding === "illegal" ? "var(--accent)" :
@@ -1081,7 +1167,7 @@ function VerdictState({
           </div>
 
           <div style={{ width: "100%", marginTop: 24 }}>
-            <Timeline data={timeline} finding={verdict.finding} onOpenActions={() => verdict.finding === "illegal" ? setDirectModal(true) : setShowActions(true)} onOpenSources={() => setShowSources(s => !s)} />
+            <Timeline data={timeline} finding={verdict.finding} onOpenActions={() => setShowActions(true)} onOpenSources={() => setShowSources(s => !s)} />
           </div>
 
           <div style={{
@@ -1099,7 +1185,7 @@ function VerdictState({
             opacity: showActions ? 1 : 0,
             transition: "max-height 0.35s ease, opacity 0.25s ease",
           }}>
-            <ActionsSection finding={verdict.finding} sessionId={sessionId} onAskMore={onAskMore} />
+            <ActionsSection finding={verdict.finding} sessionId={sessionId} city={city} onAskMore={onAskMore} />
           </div>
         </div>
         </div>
@@ -1110,15 +1196,6 @@ function VerdictState({
         <MapState city={city} onCityClick={onCityClick} />
       </div>
 
-      {directModal && (
-        <ArtifactModal
-          type="dispute_letter"
-          title="Dispute Letter"
-          subtitle="Unlawful rent increase"
-          onClose={() => setDirectModal(false)}
-          sessionId={sessionId}
-        />
-      )}
     </div>
   );
 }
@@ -1280,7 +1357,14 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <Wordmark />
+      <Wordmark onReset={() => {
+        setAppState("idle");
+        setVerdict(null);
+        setTimeline(null);
+        setFacts({});
+        setSessionId(null);
+        cityCache.current = {};
+      }} />
 
       {appState === "idle" && <IdleState onStart={handleStart} />}
 

@@ -78,6 +78,19 @@ Given the facts and the unclear verdict, write a plain-language explanation of:
 Be specific and actionable. Use plain language. No legal jargon without explanation.
 Return only the explanation, no preamble."""
 
+COMPLAINT_FORM_PROMPT = """You are helping a tenant file a formal complaint with their local rent board after an illegal rent increase.
+
+Based on the tenant's city, facts, and the illegal verdict, produce a ready-to-use complaint package with these sections:
+
+1. RENT BOARD CONTACT — the correct board name, address, phone number, and online filing URL for their city (Oakland RAP, Berkeley Rent Stabilization Board, Alameda Rent Program, Hayward RRSO, etc.)
+2. COMPLAINT NARRATIVE — 2-3 paragraphs written in first person from the tenant's perspective, using the actual facts (amounts, dates, tenancy length). Use [brackets] only for specific values the tenant must confirm (e.g. their full name, exact unit address, date notice was received).
+3. VIOLATION ALLEGED — the specific ordinance section violated and why
+4. REMEDY REQUESTED — concrete ask (e.g. rollback to lawful rent, refund of overpayments)
+5. FILING INSTRUCTIONS — step-by-step instructions for submitting in this specific city (online portal, in-person, mail), including what documents to attach (copy of notice, lease, payment records)
+
+Use plain language. Be specific to the city's actual process.
+Return only the complaint package, no preamble."""
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -142,6 +155,9 @@ async def generate_artifact(session_id: str, body: ArtifactRequest = ArtifactReq
 
     elif artifact_type == "watch_for":
         text = await call_ai(WATCH_FOR_PROMPT, ctx)
+
+    elif artifact_type == "complaint_form":
+        text = await call_ai(COMPLAINT_FORM_PROMPT, ctx)
 
     else:
         raise HTTPException(status_code=400, detail=f"Unknown artifact_type: {artifact_type}")
