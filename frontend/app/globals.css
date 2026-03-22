@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --bg: #0c0c10;
+  --surface: #12121a;
+  --surface2: #181822;
+  --border: #1e1e2e;
+  --border2: #282838;
+  --text: #eceaf4;
+  --muted: #52506a;
+  --faint: #161622;
+  --accent: #e8573a;
+  --accent-dim: rgba(232, 87, 58, 0.1);
+  --green: #3ecf8e;
+  --green-dim: rgba(62, 207, 142, 0.08);
+  --yellow: #f5c518;
+  --yellow-dim: rgba(245, 197, 24, 0.1);
+  --blue: #5b9cf6;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans), sans-serif;
+}
+
+/* ── Keyframes ─────────────────────────────────────── */
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.55); opacity: 0.25; }
+  100% { transform: scale(1.5);  opacity: 0; }
+}
+
+@keyframes waveform-bar {
+  0%, 100% { transform: scaleY(0.25); }
+  50%       { transform: scaleY(1); }
+}
+
+@keyframes blink-cursor {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes chip-appear {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pin-pulse {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+
+@keyframes scan-line {
+  0%   { top: 0%;   opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes blink-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.15; }
+}
+
+@keyframes region-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Animation classes ─────────────────────────────── */
+
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.waveform-bar {
+  animation: waveform-bar 0.8s ease-in-out infinite;
+}
+
+.cursor-blink {
+  animation: blink-cursor 1s step-end infinite;
+}
+
+.chip-appear {
+  opacity: 0;
+  animation: chip-appear 0.3s ease forwards;
+}
+
+.pin-pulse {
+  animation: pin-pulse 1.8s ease-out infinite;
+}
+
+.scan-line {
+  animation: scan-line 0.55s ease-out forwards;
+}
+
+.modal-in {
+  animation: modal-in 0.22s ease forwards;
+}
+
+.blink-dot {
+  animation: blink-dot 1.5s ease-in-out infinite;
 }
