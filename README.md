@@ -11,4 +11,4 @@ awesome demo: https://www.youtube.com/watch?v=vYqiX5TK8pY
 <img width="1799" height="975" alt="Screenshot 2026-03-22 at 2 49 54 AM" src="https://github.com/user-attachments/assets/f217593a-f191-4bd2-b72b-dfb5493bf598" />
 
 system architecture
-<img width="960" height="540" alt="architecture" src="https://github.com/user-attachments/assets/e1f99eed-4c7b-4e38-b101-606a024b26a6" />
+<img width="960" height="540" alt="architecture (1)" src="https://github.com/user-attachments/assets/df021206-fa73-49a7-86eb-afb529c36784" />
