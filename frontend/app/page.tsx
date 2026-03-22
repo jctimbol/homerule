@@ -676,8 +676,8 @@ function Timeline({ data, finding, onOpenActions, onOpenSources }: { data: Timel
 
   // Fixed height reserved above the track for "above" labels.
   // All dots sit at y = ABOVE_H, so the track line can be positioned exactly there.
-  const ABOVE_H = 52;
-  const DOT_BASE = 10; // normal dot diameter; track line is centered on this
+  const ABOVE_H = 36;
+  const DOT_BASE = 8; // normal dot diameter; track line is centered on this
 
   return (
     <div style={{ position: "relative" }}>
@@ -686,7 +686,7 @@ function Timeline({ data, finding, onOpenActions, onOpenSources }: { data: Timel
       <div style={{
         position: "absolute", left: 0, right: 0,
         top: ABOVE_H + DOT_BASE / 2 - 1, height: 2,
-        background: "var(--border2)", borderRadius: 1,
+        background: "rgba(255,255,255,0.12)", borderRadius: 1,
       }}>
         <div style={{
           position: "absolute", left: 0, top: 0, bottom: 0,
@@ -705,8 +705,8 @@ function Timeline({ data, finding, onOpenActions, onOpenSources }: { data: Timel
           const isPassed  = m.state === "passed";
           const isFirst   = i === 0;
           const isLast    = i === n - 1;
-          const dotSize   = isUrgent ? 14 : 10;
-          const dotColor  = isPassed ? "var(--green)" : isUrgent ? "var(--accent)" : "var(--border2)";
+          const dotSize   = isUrgent ? 10 : 8;
+          const dotColor  = isPassed ? "var(--green)" : isUrgent ? "var(--accent)" : "rgba(255,255,255,0.2)";
           const textColor = isPassed ? "var(--green)" : isUrgent ? "var(--accent)" : "var(--muted)";
           const align     = isFirst ? "flex-start" : isLast ? "flex-end" : "center";
           const textAlign = isFirst ? "left"        : isLast ? "right"   : "center";
@@ -730,8 +730,8 @@ function Timeline({ data, finding, onOpenActions, onOpenSources }: { data: Timel
                 cursor: "pointer",
                 background: urgentHovered ? btnColor : btnBg,
                 border: `1px solid ${btnColor}`,
-                borderRadius: 999, padding: "5px 14px",
-                fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
+                borderRadius: 999, padding: "5px 12px",
+                fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
                 color: urgentHovered ? "var(--bg)" : btnColor,
                 transition: "all 0.15s",
                 boxShadow: urgentHovered ? btnShadow : "none",
@@ -749,8 +749,8 @@ function Timeline({ data, finding, onOpenActions, onOpenSources }: { data: Timel
                 cursor: "pointer",
                 background: passedHovered ? "var(--green)" : "rgba(62,207,142,0.08)",
                 border: "1px solid var(--green)",
-                borderRadius: 999, padding: "5px 14px",
-                fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
+                borderRadius: 999, padding: "5px 12px",
+                fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
                 color: passedHovered ? "var(--bg)" : "var(--green)",
                 transition: "all 0.15s",
                 boxShadow: passedHovered ? "0 0 16px rgba(62,207,142,0.3)" : "none",
@@ -769,12 +769,12 @@ function Timeline({ data, finding, onOpenActions, onOpenSources }: { data: Timel
           );
 
           return (
-            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: align }}>
+            <div key={i} style={{ flex: "1 1 0%", minWidth: 0, display: "flex", flexDirection: "column", alignItems: align }}>
 
               {/* Above zone — fixed height so all dots land at the same y */}
               <div style={{
                 height: ABOVE_H, width: "100%",
-                display: "flex", alignItems: "flex-end", paddingBottom: 8,
+                display: "flex", alignItems: "flex-end", paddingBottom: 6,
                 justifyContent: isFirst ? "flex-start" : isLast ? "flex-end" : "center",
               }}>
                 {above && labelContent}
@@ -790,7 +790,7 @@ function Timeline({ data, finding, onOpenActions, onOpenSources }: { data: Timel
 
               {/* Below zone */}
               <div style={{
-                paddingTop: 10, width: "100%",
+                paddingTop: 6, width: "100%",
                 display: "flex", justifyContent: isFirst ? "flex-start" : isLast ? "flex-end" : "center",
               }}>
                 {!above && labelContent}
