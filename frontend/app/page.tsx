@@ -387,11 +387,13 @@ const CITY_COLOR_EXPR = [
   "#4b5563",
 ];
 
-function MapState({ city }: { city: string }) {
+function MapState({ city, onCityClick }: { city: string; onCityClick?: (city: string) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
   const normalCity = city.split(",")[0].trim();
+  const onCityClickRef = useRef(onCityClick);
+  onCityClickRef.current = onCityClick;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -403,7 +405,7 @@ function MapState({ city }: { city: string }) {
       map = new Map({
         container: containerRef.current,
         style: "https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json",
-        bounds: [[-122.42, 37.42], [-121.82, 37.95]],
+        bounds: [[-122.38, 37.46], [-121.86, 37.92]],
         fitBoundsOptions: { padding: 24 },
         interactive: false,
         attributionControl: false,
@@ -417,6 +419,14 @@ function MapState({ city }: { city: string }) {
           type: "fill",
           source: "cities",
           paint: { "fill-color": CITY_COLOR_EXPR, "fill-opacity": 0.22 },
+        });
+
+        map.addLayer({
+          id: "city-hover",
+          type: "fill",
+          source: "cities",
+          filter: ["==", ["get", "BASENAME"], ""],
+          paint: { "fill-color": CITY_COLOR_EXPR, "fill-opacity": 0.4 },
         });
 
         map.addLayer({
@@ -447,6 +457,28 @@ function MapState({ city }: { city: string }) {
             "line-opacity": 0.9,
             "line-width": 2,
           },
+        });
+
+        // Enable interactivity
+        map.getCanvas().style.cursor = "";
+        map.dragPan.enable();
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        map.on("mousemove", "cities-fill", (e: any) => {
+          map.getCanvas().style.cursor = "pointer";
+          const name = e.features?.[0]?.properties?.BASENAME ?? "";
+          map.setFilter("city-hover", ["==", ["get", "BASENAME"], name]);
+        });
+
+        map.on("mouseleave", "cities-fill", () => {
+          map.getCanvas().style.cursor = "";
+          map.setFilter("city-hover", ["==", ["get", "BASENAME"], ""]);
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        map.on("click", "cities-fill", (e: any) => {
+          const name = e.features?.[0]?.properties?.BASENAME;
+          if (name) onCityClickRef.current?.(name);
         });
       });
 
@@ -479,7 +511,7 @@ function MapState({ city }: { city: string }) {
       </p>
       <div
         ref={containerRef}
-        style={{ width: "100%", maxWidth: 420, height: 380, borderRadius: 12, overflow: "hidden" }}
+        style={{ width: "100%", height: 620, borderRadius: 12, overflow: "hidden" }}
       />
     </div>
   );
@@ -623,11 +655,10 @@ function ResearchingState({ city, sources }: { city: string; sources: Source[] }
   );
 }
 
-// ── State 5: Verdict ───────────────────────────────────────────────────────
-
-function Timeline({ data, onSendLetter }: { data: TimelineData; onSendLetter: () => void }) {
+function Timeline({ data, finding, onOpenActions, onOpenSources }: { data: TimelineData; finding: Finding; onOpenActions: () => void; onOpenSources: () => void }) {
   const [animated, setAnimated] = useState(false);
-  const [btnHovered, setBtnHovered] = useState(false);
+  const [urgentHovered, setUrgentHovered] = useState(false);
+  const [passedHovered, setPassedHovered] = useState(false);
   useEffect(() => { setTimeout(() => setAnimated(true), 120); }, []);
 
   const n = data.milestones.length;
@@ -680,20 +711,49 @@ function Timeline({ data, onSendLetter }: { data: TimelineData; onSendLetter: ()
           const align     = isFirst ? "flex-start" : isLast ? "flex-end" : "center";
           const textAlign = isFirst ? "left"        : isLast ? "right"   : "center";
 
+          const btnColor =
+            finding === "illegal" ? "var(--accent)" :
+            finding === "legal"   ? "var(--green)"  : "var(--yellow)";
+          const btnBg =
+            finding === "illegal" ? "rgba(232,87,58,0.1)" :
+            finding === "legal"   ? "var(--green-dim)"    : "var(--yellow-dim)";
+          const btnShadow =
+            finding === "illegal" ? "0 0 16px rgba(232,87,58,0.4)" :
+            finding === "legal"   ? "0 0 16px rgba(62,207,142,0.3)" : "0 0 16px rgba(245,197,24,0.3)";
+
           const labelContent = isUrgent ? (
             <button
-              onClick={onSendLetter}
-              onMouseEnter={() => setBtnHovered(true)}
-              onMouseLeave={() => setBtnHovered(false)}
+              onClick={onOpenActions}
+              onMouseEnter={() => setUrgentHovered(true)}
+              onMouseLeave={() => setUrgentHovered(false)}
               style={{
                 cursor: "pointer",
-                background: btnHovered ? "var(--accent)" : "var(--accent-dim)",
-                border: "1px solid var(--accent)",
+                background: urgentHovered ? btnColor : btnBg,
+                border: `1px solid ${btnColor}`,
                 borderRadius: 999, padding: "5px 14px",
                 fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
-                color: btnHovered ? "white" : "var(--accent)",
+                color: urgentHovered ? "var(--bg)" : btnColor,
                 transition: "all 0.15s",
-                boxShadow: btnHovered ? "0 0 16px rgba(232,87,58,0.4)" : "none",
+                boxShadow: urgentHovered ? btnShadow : "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {m.label} →
+            </button>
+          ) : isPassed ? (
+            <button
+              onClick={onOpenSources}
+              onMouseEnter={() => setPassedHovered(true)}
+              onMouseLeave={() => setPassedHovered(false)}
+              style={{
+                cursor: "pointer",
+                background: passedHovered ? "var(--green)" : "rgba(62,207,142,0.08)",
+                border: "1px solid var(--green)",
+                borderRadius: 999, padding: "5px 14px",
+                fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
+                color: passedHovered ? "var(--bg)" : "var(--green)",
+                transition: "all 0.15s",
+                boxShadow: passedHovered ? "0 0 16px rgba(62,207,142,0.3)" : "none",
                 whiteSpace: "nowrap",
               }}
             >
@@ -702,7 +762,7 @@ function Timeline({ data, onSendLetter }: { data: TimelineData; onSendLetter: ()
           ) : (
             <div style={{
               fontFamily: "var(--font-mono)", fontSize: 10, color: textColor,
-              textAlign, lineHeight: 1.4, width: "100%", wordBreak: "break-word",
+              textAlign, lineHeight: 1.4, width: "100%", whiteSpace: "nowrap",
             }}>
               {m.label}
             </div>
@@ -746,14 +806,226 @@ function Timeline({ data, onSendLetter }: { data: TimelineData; onSendLetter: ()
 }
 
 
+// ── Artifact modal (dispute letter, rights summary, etc.) ───────────────────
+
+function ArtifactModal({ type, title, subtitle, onClose, sessionId }: {
+  type: string;
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+  sessionId: string | null;
+}) {
+  const [text, setText] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    fetch(`${API}/session/${sessionId}/artifact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artifact_type: type }),
+    })
+      .then((r) => r.json())
+      .then((d) => setText(d.artifact_text))
+      .catch(() => setText("Failed to generate. Please try again."));
+  }, [sessionId, type]);
+
+  function copy() {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} className="modal-in" style={{ width: "100%", maxWidth: 580, maxHeight: "80vh", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--accent)", margin: "0 0 4px" }}>{subtitle}</p>
+            <p style={{ fontFamily: "var(--font-playfair)", fontSize: 18, color: "var(--text)", margin: 0 }}>{title}</p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 22, lineHeight: 1, padding: 4, flexShrink: 0 }}>×</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+          {!text ? (
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--muted)", textAlign: "center", marginTop: 40 }}>Generating…</p>
+          ) : (
+            <pre style={{ fontFamily: "var(--font-sans)", fontSize: 14, lineHeight: 1.9, color: "var(--text)", whiteSpace: "pre-wrap", margin: 0 }}>{text}</pre>
+          )}
+        </div>
+        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 16px", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted)", cursor: "pointer" }}>Close</button>
+          <button onClick={copy} disabled={!text} style={{ background: copied ? "var(--green)" : "var(--accent)", border: "none", borderRadius: 8, padding: "8px 16px", fontFamily: "var(--font-mono)", fontSize: 12, color: "white", cursor: !text ? "not-allowed" : "pointer", transition: "background 0.2s", opacity: !text ? 0.4 : 1 }}>
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Reminder modal ──────────────────────────────────────────────────────────
+
+function ReminderModal({ onClose }: { onClose: () => void }) {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() + 1);
+  const dateStr = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(dateStr);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} className="modal-in" style={{ width: "100%", maxWidth: 440, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ fontFamily: "var(--font-playfair)", fontSize: 18, color: "var(--text)", margin: 0 }}>Set a reminder</p>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 22, lineHeight: 1, padding: 4 }}>×</button>
+        </div>
+        <div style={{ padding: 24 }}>
+          <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--muted)", lineHeight: 1.6, margin: "0 0 20px" }}>
+            At the 12-month mark, AB 1482 statewide protections may kick in for units that aren{"'"}t currently covered. Mark your calendar to re-check your situation on:
+          </p>
+          <div style={{ background: "var(--faint)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: "var(--font-playfair)", fontSize: 22, color: "var(--text)" }}>{dateStr}</span>
+            <button onClick={copy} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: copied ? "var(--green)" : "var(--muted)", cursor: "pointer" }}>
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Actions section ─────────────────────────────────────────────────────────
+
+function ActionButton({ label, description, onClick }: { label: string; description: string; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
+        background: hovered ? "var(--surface2)" : "var(--surface)",
+        border: `1px solid ${hovered ? "var(--border2)" : "var(--border)"}`,
+        borderRadius: 12, padding: "14px 18px", cursor: "pointer", textAlign: "left",
+        transition: "background 0.15s, border-color 0.15s", width: "100%",
+      }}
+    >
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{label} →</span>
+      <span style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>{description}</span>
+    </button>
+  );
+}
+
+function SourcesPanel({ sources }: { sources: Source[] }) {
+  return (
+    <div style={{ marginTop: 32, display: "flex", flexDirection: "column", gap: 10 }}>
+      <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)", margin: "0 0 4px" }}>
+        Sources consulted
+      </p>
+      {sources.map((source, i) => (
+        <div key={source.url ?? i} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+              {SOURCE_ICONS[i] ?? "📄"}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text)", fontWeight: 500 }}>{source.name}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", display: "block", background: "var(--green)" }} />
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--green)" }}>Retrieved</span>
+                </div>
+              </div>
+              <a href={`https://${source.url}`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--muted)", margin: "3px 0 6px", display: "block", textDecoration: "underline", textUnderlineOffset: 2 }}>{source.url}</a>
+              {source.snippet && (
+                <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>{source.snippet}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActionsSection({ finding, sessionId, onAskMore }: {
+  finding: Finding;
+  sessionId: string | null;
+  onAskMore: () => void;
+}) {
+  const [modal, setModal] = useState<string | null>(null);
+
+  const actions =
+    finding === "illegal" ? [
+      { key: "dispute_letter",   label: "Send your letter",     title: "Dispute Letter",       subtitle: "Unlawful rent increase", description: "A formal letter citing the violation and demanding the landlord comply with the legal cap." },
+    ] :
+    finding === "legal" ? [
+      { key: "rights_summary",      label: "Know your other rights",  title: "Your Rights",           subtitle: "What still protects you",              description: "A summary of the notice, habitability, and retaliation protections that still apply to you." },
+      { key: "confirmation_letter", label: "Get this in writing",     title: "Confirmation Letter",   subtitle: "Documenting the increase",             description: "A neutral letter to your landlord confirming the new rent and effective date — builds a paper trail." },
+      { key: "reminder",            label: "Set a reminder",          title: "",                      subtitle: "",                                     description: "Mark your calendar for 12 months from now, when AB 1482 coverage may change." },
+    ] : [
+      { key: "situation_summary",   label: "Talk to a tenant rights org", title: "Situation Summary", subtitle: "For your legal aid appointment",       description: "A one-page brief with your facts pre-filled — so you get the most out of 20 minutes with an attorney." },
+      { key: "ask_more",            label: "Ask a clarifying question",   title: "",                  subtitle: "",                                     description: "Provide one more fact that might resolve the ambiguity and get a firmer answer." },
+      { key: "watch_for",           label: "Here's what to watch for",    title: "What to Watch For", subtitle: "Conditions that change this analysis",  description: "The specific things you can verify that would make this illegal." },
+    ];
+
+  return (
+    <>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 32 }}>
+        {actions.map((a) => (
+          <ActionButton
+            key={a.key}
+            label={a.label}
+            description={a.description}
+            onClick={() => a.key === "ask_more" ? onAskMore() : setModal(a.key)}
+          />
+        ))}
+      </div>
+
+      {modal === "reminder" && <ReminderModal onClose={() => setModal(null)} />}
+      {modal && modal !== "reminder" && (
+        <ArtifactModal
+          type={modal}
+          title={actions.find(a => a.key === modal)?.title ?? ""}
+          subtitle={actions.find(a => a.key === modal)?.subtitle ?? ""}
+          onClose={() => setModal(null)}
+          sessionId={sessionId}
+        />
+      )}
+    </>
+  );
+}
+
+// ── State 5: Verdict ────────────────────────────────────────────────────────
+
 function VerdictState({
-  verdict, timeline, city, onGenerateLetter,
+  verdict, timeline, city, sessionId, verdictFading, switchingToCity, onAskMore, onCityClick,
 }: {
   verdict: VerdictData;
   timeline: TimelineData;
   city: string;
-  onGenerateLetter: () => void;
+  sessionId: string | null;
+  verdictFading: boolean;
+  switchingToCity: string | null;
+  onAskMore: () => void;
+  onCityClick: (city: string) => void;
 }) {
+  const [showActions, setShowActions] = useState(false);
+  const [showSources, setShowSources] = useState(false);
+  const [directModal, setDirectModal] = useState(false);
+
+  // Collapse panels when city switches
+  useEffect(() => { if (verdictFading) { setShowActions(false); setShowSources(false); setDirectModal(false); } }, [verdictFading]);
+
   const findingColor =
     verdict.finding === "illegal" ? "var(--accent)" :
     verdict.finding === "legal"   ? "var(--green)"  : "var(--yellow)";
@@ -764,150 +1036,89 @@ function VerdictState({
   return (
     <div
       style={{
-        display: "flex", flexDirection: "column", alignItems: "center",
-        justifyContent: "center", minHeight: "100vh",
-        padding: "100px 64px 80px", maxWidth: 860, margin: "0 auto",
+        display: "flex", alignItems: "flex-start", justifyContent: "center",
+        minHeight: "100vh", padding: "100px 32px 80px",
+        maxWidth: 1400, margin: "0 auto", gap: 160,
       }}
     >
-      {/* Finding */}
-      <div style={{ width: "100%", marginBottom: 8 }}>
-        <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)", margin: "0 0 12px" }}>
-          Finding issued
-        </p>
-        <h1 style={{ fontFamily: "var(--font-playfair)", fontSize: 96, fontWeight: 700, color: findingColor, margin: 0, lineHeight: 1 }}>
-          {findingLabel}
-        </h1>
-        <p style={{ fontFamily: "var(--font-sans)", fontSize: 18, color: "var(--text)", margin: "20px 0 0", lineHeight: 1.6, maxWidth: 640 }}>
-          {verdict.explanation}
-        </p>
-      </div>
+      {/* Left column: Finding + Timeline */}
+      <div style={{ flex: "1 1 0", minWidth: 360, position: "relative" }}>
 
-      {/* Timeline — primary element */}
-      <div style={{ width: "100%", marginTop: 24 }}>
-        <Timeline data={timeline} onSendLetter={onGenerateLetter} />
-      </div>
-
-      {/* Map — anchored to bottom */}
-      <div style={{ width: "100%", marginTop: 40, borderTop: "1px solid var(--border)", paddingTop: 40 }}>
-        <MapState city={city} />
-      </div>
-
-    </div>
-  );
-}
-
-// ── Letter Modal ───────────────────────────────────────────────────────────
-
-function LetterModal({ onClose, sessionId }: { onClose: () => void; sessionId: string | null }) {
-  const [letter, setLetter] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    fetch(`${API}/session/${sessionId}/artifact`, { method: "POST" })
-      .then((r) => r.json())
-      .then((d) => setLetter(d.artifact_text))
-      .catch(() => setLetter("Failed to generate letter. Please try again."));
-  }, [sessionId]);
-
-  function copy() {
-    if (!letter) return;
-    navigator.clipboard.writeText(letter);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, zIndex: 100,
-        background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="modal-in"
-        style={{
-          width: "100%", maxWidth: 580, maxHeight: "80vh",
-          background: "var(--surface)", border: "1px solid var(--border)",
-          borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "16px 20px", borderBottom: "1px solid var(--border)",
-            display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-          }}
-        >
-          <div>
-            <p
-              style={{
-                fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase",
-                letterSpacing: "0.1em", color: "var(--accent)", margin: "0 0 4px",
-              }}
-            >
-              Draft Letter · Hayward RSO §4-17.050
+        {/* City lookup label — appears between fade-out and fade-in */}
+        {switchingToCity && (
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 1,
+            display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", gap: 12,
+          }}>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--muted)", margin: 0 }}>
+              Researching
             </p>
-            <p style={{ fontFamily: "var(--font-playfair)", fontSize: 18, color: "var(--text)", margin: 0 }}>
-              Dispute Letter — Unlawful Rent Increase
+            <p style={{ fontFamily: "var(--font-playfair)", fontSize: 36, color: "var(--text)", margin: 0 }}>
+              {switchingToCity}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "var(--muted)", fontSize: 22, lineHeight: 1, padding: 4, flexShrink: 0,
-            }}
-          >
-            ×
-          </button>
-        </div>
+        )}
 
-        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-          {!letter ? (
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--muted)", textAlign: "center", marginTop: 40 }}>
-              Generating your letter…
+        <div style={{
+          marginTop: showSources || showActions ? 0 : 140,
+          transition: "margin-top 0.4s cubic-bezier(0.4,0,0.2,1)",
+        }}>
+        <div style={{
+          opacity: verdictFading ? 0 : 1,
+          transition: "opacity 0.2s ease",
+          pointerEvents: verdictFading ? "none" : "auto",
+        }}>
+          <div style={{ marginBottom: 8 }}>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)", margin: "0 0 12px" }}>
+              {city} findings
             </p>
-          ) : (
-            <pre style={{ fontFamily: "var(--font-sans)", fontSize: 14, lineHeight: 1.9, color: "var(--text)", whiteSpace: "pre-wrap", margin: 0 }}>
-              {letter}
-            </pre>
-          )}
-        </div>
+            <h1 style={{ fontFamily: "var(--font-playfair)", fontSize: 96, fontWeight: 700, color: findingColor, margin: 0, lineHeight: 1 }}>
+              {findingLabel}
+            </h1>
+            <p style={{ fontFamily: "var(--font-sans)", fontSize: 18, color: "var(--text)", margin: "20px 0 0", lineHeight: 1.6 }}>
+              {verdict.explanation}
+            </p>
+          </div>
 
-        <div
-          style={{
-            padding: "14px 20px", borderTop: "1px solid var(--border)",
-            display: "flex", gap: 10, justifyContent: "flex-end",
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              background: "none", border: "1px solid var(--border)", borderRadius: 8,
-              padding: "8px 16px", fontFamily: "var(--font-mono)", fontSize: 12,
-              color: "var(--muted)", cursor: "pointer",
-            }}
-          >
-            Close
-          </button>
-          <button
-            onClick={copy}
-            disabled={!letter}
-            style={{
-              background: copied ? "var(--green)" : "var(--accent)",
-              border: "none", borderRadius: 8, padding: "8px 16px",
-              fontFamily: "var(--font-mono)", fontSize: 12,
-              color: "white", cursor: !letter ? "not-allowed" : "pointer",
-              transition: "background 0.2s", opacity: !letter ? 0.4 : 1,
-            }}
-          >
-            {copied ? "Copied!" : "Copy Letter"}
-          </button>
+          <div style={{ width: "100%", marginTop: 24 }}>
+            <Timeline data={timeline} finding={verdict.finding} onOpenActions={() => verdict.finding === "illegal" ? setDirectModal(true) : setShowActions(true)} onOpenSources={() => setShowSources(s => !s)} />
+          </div>
+
+          <div style={{
+            overflow: "hidden",
+            maxHeight: showSources ? 800 : 0,
+            opacity: showSources ? 1 : 0,
+            transition: "max-height 0.35s ease, opacity 0.25s ease",
+          }}>
+            <SourcesPanel sources={verdict.sources} />
+          </div>
+
+          <div style={{
+            overflow: "hidden",
+            maxHeight: showActions ? 600 : 0,
+            opacity: showActions ? 1 : 0,
+            transition: "max-height 0.35s ease, opacity 0.25s ease",
+          }}>
+            <ActionsSection finding={verdict.finding} sessionId={sessionId} onAskMore={onAskMore} />
+          </div>
+        </div>
         </div>
       </div>
+
+      {/* Right column: Map — stays visible during transition */}
+      <div style={{ flex: "0 0 660px", position: "sticky", top: 100 }}>
+        <MapState city={city} onCityClick={onCityClick} />
+      </div>
+
+      {directModal && (
+        <ArtifactModal
+          type="dispute_letter"
+          title="Dispute Letter"
+          subtitle="Unlawful rent increase"
+          onClose={() => setDirectModal(false)}
+          sessionId={sessionId}
+        />
+      )}
     </div>
   );
 }
@@ -923,9 +1134,54 @@ export default function Home() {
   const [timeline, setTimeline] = useState<TimelineData | null>(null);
   const [recording, setRecording] = useState(false);
   const [loadingState, setLoadingState] = useState<"idle" | "transcribing" | "thinking">("idle");
-  const [showModal, setShowModal] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const cityCache = useRef<Record<string, { verdict: VerdictData; timeline: TimelineData; facts: ExtractedFacts }>>({});
+  const [verdictFading, setVerdictFading] = useState(false);
+  const [switchingToCity, setSwitchingToCity] = useState<string | null>(null);
+
+  async function switchCity(newCity: string) {
+    if (!sessionId) return;
+
+    function applyEntry(entry: { verdict: VerdictData; timeline: TimelineData; facts: ExtractedFacts }) {
+      setFacts(entry.facts);
+      setVerdict(entry.verdict);
+      setTimeline(entry.timeline);
+      setSwitchingToCity(null);
+      setVerdictFading(false);
+    }
+
+    setVerdictFading(true);
+    // Show the city name after the fade-out completes
+    setTimeout(() => setSwitchingToCity(newCity), 200);
+
+    if (cityCache.current[newCity]) {
+      // Small delay so the fade-out is visible before content swaps
+      setTimeout(() => applyEntry(cityCache.current[newCity]), 200);
+      return;
+    }
+
+    // Cache miss — fetch in background, stay on verdict screen
+    try {
+      const res = await fetch(`${API}/session/${sessionId}/research`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ city: newCity }),
+      });
+      const data = await res.json();
+      if (data.verdict && data.timeline) {
+        const entry = {
+          verdict: data.verdict as VerdictData,
+          timeline: data.timeline as TimelineData,
+          facts: data.facts as ExtractedFacts,
+        };
+        cityCache.current[newCity] = entry;
+        applyEntry(entry);
+      } else {
+        setVerdictFading(false);
+      }
+    } catch { setVerdictFading(false); }
+  }
 
 
   async function speak(text: string) {
@@ -973,6 +1229,14 @@ export default function Home() {
         if (data.facts)   setFacts(data.facts);
         if (data.verdict) setVerdict(data.verdict);
         if (data.timeline) setTimeline(data.timeline);
+        // Seed the cache with the initial result so switching back is instant
+        if (data.facts?.city && data.verdict && data.timeline) {
+          cityCache.current[data.facts.city] = {
+            verdict: data.verdict,
+            timeline: data.timeline,
+            facts: data.facts,
+          };
+        }
         setAppState("researching");
         setTimeout(() => setAppState("verdict"), 4400);
       }
@@ -1040,11 +1304,13 @@ export default function Home() {
           verdict={verdict}
           timeline={timeline}
           city={facts.city || ""}
-          onGenerateLetter={() => setShowModal(true)}
+          sessionId={sessionId}
+          verdictFading={verdictFading}
+          switchingToCity={switchingToCity}
+          onAskMore={() => setAppState("listening")}
+          onCityClick={switchCity}
         />
       )}
-
-      {showModal && <LetterModal onClose={() => setShowModal(false)} sessionId={sessionId} />}
     </div>
   );
 }
